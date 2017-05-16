@@ -63,9 +63,9 @@ class Dialect(Base):
     operators = {'and': 'and',
                  'or': 'or'}
 
-    values = {True: True,
-              False: False,
-              None: None}
+    values = {(True, type(True)): True,
+              (False, type(False)): False,
+              (None, type(None)): None}
 
     @classmethod
     def property(cls, property):
@@ -82,7 +82,7 @@ class Dialect(Base):
         """
         Serialize property value.
         """
-        return cls.values.get(value, value)
+        return cls.values.get((value, type(value)), value)
 
     @classmethod
     def operand(cls, operand):
@@ -99,10 +99,16 @@ class Dialect(Base):
         Serialize Expression object.
         """
         if expression.right:
-            return "{0.left} {1} {0.right}".format(expression,
-                                                   cls.operators[expression.operator])
+            if expression.nested:
+                e = "{0.left} {1} ({0.right})"
+            else:
+                e = "{0.left} {1} {0.right}"
         else:
-            return "{0.left}".format(expression)
+            if expression.nested:
+                e = "({0.left})"
+            else:
+                e = "{0.left}"
+        return e.format(expression, cls.operators[expression.operator])
 
 class Operand(Base):
     property = None
@@ -123,6 +129,7 @@ class Expression(object):
     left = None
     operator = None
     right = None
+    nested = False
 
     def __init__(self, left, operator, right):
         # NOTE: - left and right can be an Operand or Expression object,
@@ -134,6 +141,8 @@ class Expression(object):
         if not isinstance(right, (Operand, Expression, type(None))):
             raise TypeError('Left must be of type Operand, Expression or None')
         self.right = right
+        if isinstance(left, Expression):
+            self.nested = True
 
     def __str__(self):
         return Dialect.expression(self)
@@ -197,7 +206,7 @@ if __name__ == '__main__':
     Examples and tests (TODO).
     """
     # print factory_by(name='k', a=1, b=2, z=9)
-    print factory(P.a == 'a', P.b >= 'b', or_(P.x == 1, P.y == 2)) #FIXME: x and y must be nested in the generated expression
+    print factory(P.a == 'a', P.b >= 'b', or_(P.x == 1, P.y == 2))
     e = factory(P.first == 1)
     print e
     e = e.and_(P.last == 'n').or_(P.tail == 'yes')
