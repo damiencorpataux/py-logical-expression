@@ -28,8 +28,15 @@ class Property(object):
         #FIXME: return Dialect.property(property)
         return self.__name
 
+    def __repr__(self):
+        #FIXME: return Dialect.property(property)
+        return "{%s}" % self.__name
+
     def __eq__(self, value):
         return Operand(self, 'eq', value)
+
+    def __ne__(self, value):
+        return Operand(self, 'ne', value)
 
     def __gt__(self, value):
         return Operand(self, 'gt', value)
@@ -47,7 +54,16 @@ P = Property
 
 
 class Base(object):
-    pass
+    def __repr__(self):
+        if isinstance(self, Expression):
+            if type(self) is Operand:
+                left, operator, right = self.property, self.comparator, self.value
+            if type(self) is Expression:
+                left, operator, right = self.left, self.operator, self.right
+            return "({0}<-{1}->{2})".format(repr(left), operator, repr(right))
+        else:
+            return "{0}(%s)".format(self.__class_.__name__,
+                                    self)
 
 class Dialect(Base):
     """
@@ -55,6 +71,7 @@ class Dialect(Base):
     TODO: make a pluggable dialect design.
     """
     comparators = {'eq': 'eq',
+                   'ne': 'ne',
                    'gt': 'gt',
                    'ge': 'ge',
                    'lt': 'lt',
@@ -98,51 +115,49 @@ class Dialect(Base):
         """
         Serialize Expression object.
         """
+        def nest(operand):
+            #print type(operand), operand
+            if type(operand) is Operand:
+                return "%s" % operand
+            elif type(operand) is Expression:
+                return ("(%s)" % operand)
+            else:
+                return operand
+                raise ValueError('Operand should not be %s "%s"'
+                                 % (type(operand), operand))
+        left = nest(expression.left)
+        right = nest(expression.right)
         if expression.right:
-            if expression.nested:
-                e = "{0.left} {1} ({0.right})"
-            else:
-                e = "{0.left} {1} {0.right}"
+            e = "{left} {operator} {right}"
         else:
-            if expression.nested:
-                e = "({0.left})"
-            else:
-                e = "{0.left}"
-        return e.format(expression, cls.operators[expression.operator])
+            e = "{left}"
+        return e.format(left=left,
+                        operator=cls.operators[expression.operator],
+                        right=right)
 
-class Operand(Base):
-    property = None
-    comparator = None
-    value = None
-
-    def __init__(self, property, comparator, value):
-        if not isinstance(property, Property):
-            raise TypeError('Property must be of type Property')
-        self.property = property
-        self.comparator = comparator
-        self.value = value
-
-    def __str__(self):
-        return Dialect.operand(self)
-
-class Expression(object):
+class Expression(Base):
     left = None
     operator = None
     right = None
-    nested = False
 
     def __init__(self, left, operator, right):
         # NOTE: - left and right can be an Operand or Expression object,
         #       - right can be None (in this case operator has no meaning)
         if not isinstance(left, (Operand, Expression)):
-            raise TypeError('Right must be of type Operand or Expression')
+            raise TypeError('Right must be of type Operand or Expression, '
+                            'was %s' % type(right))
         self.left = left
         self.operator = operator
         if not isinstance(right, (Operand, Expression, type(None))):
-            raise TypeError('Left must be of type Operand, Expression or None')
+            raise TypeError('Left must be of type Operand, Expression or None, '
+                            'was %s' % type(right))
         self.right = right
-        if isinstance(left, Expression):
-            self.nested = True
+
+    def __and__(self, other):
+        return Expression(self, 'and', other)
+
+    def __or__(self, other):
+        return Expression(self, 'or', other)
 
     def __str__(self):
         return Dialect.expression(self)
@@ -167,15 +182,34 @@ class Expression(object):
         """
         Produce an Expression object from the given operands.
         """
-        right = None
+        operands = list(operands)
+        right = operands.pop()
         for operand in reversed(operands):
             right = Expression(operand, operator, right)
         return right
 
+class Operand(Expression):
+    #FIXME: Operand could/should be not be coded. Expression suffice...
+    #       Operand extends Expression to be able to .and_() and ._or()
+    #       but this is non-sense, the Operand walks and talks like Expression,
+    #       therefore it is an Expression.
+    property = None
+    comparator = None
+    value = None
 
-def factory(*operands):
+    def __init__(self, property, comparator, value):
+        if not isinstance(property, Property):
+            raise TypeError('Property must be of type Property')
+        self.property = property
+        self.comparator = comparator
+        self.value = value
+
+    def __str__(self):
+        return Dialect.operand(self)
+
+def e(*operands):
     """
-    Produce an Expression object from the given operands.
+    Alias for and_().
     """
     return and_(*operands)
 
@@ -192,24 +226,16 @@ def or_(*operands):
     return Expression.factory('or', *operands)
 
 
-# FIXME: could be merged with factory ?
-# def factory_by(**kwargs):
-#     """
-#     Produce an Expression object from the given keyword arguments.
-#     Note that the operands are not in order in the produced expression.
-#     """
-#     return factory(*[getattr(Property, k) == v for k, v in kwargs.viewitems()])
-
-
 if __name__ == '__main__':
     """
     Examples and tests (TODO).
     """
     # print factory_by(name='k', a=1, b=2, z=9)
-    print factory(P.a == 'a', P.b >= 'b', or_(P.x == 1, P.y == 2))
-    e = factory(P.first == 1)
-    print e
-    e = e.and_(P.last == 'n').or_(P.tail == 'yes')
-    print e
-    e = or_(e, P.opt == False, P.may == True, P.no == None)
-    print e
+    ex = e(P.first == 1)
+    print ex
+    ex = ex.and_(P.last == 'n').or_(P.tail == 'yes')
+    print ex
+    ex = or_(ex, P.opt == False, P.may == True, P.no == None)
+    print ex
+    #print e(P.a == 'a', P.b >= 'b', or_(P.x == 1, P.y == 2), or_(P.xxx == 1, P.yyy == 2))
+    ex
