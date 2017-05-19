@@ -17,150 +17,106 @@ class Property(object):
     Represent a named and comparable property.
     """
     __metaclass__ = PropertyType
-    __name = None
+    name = None
 
     def __init__(self, name):
         if not name or not isinstance(name, basestring):
             raise ValueError('Property name must be string and cannot be empty')
-        self.__name = name
+        self.name = name
 
     def __str__(self):
-        #FIXME: return Dialect.property(property)
-        return self.__name
+        return Dialect.property(self)
 
     def __repr__(self):
-        #FIXME: return Dialect.property(property)
-        return "{%s}" % self.__name
+        return "{%s}" % self.name
 
     def __eq__(self, value):
-        return Operand(self, 'eq', value)
+        return Expression(self, 'eq', value)
 
     def __ne__(self, value):
-        return Operand(self, 'ne', value)
+        return Expression(self, 'ne', value)
 
     def __gt__(self, value):
-        return Operand(self, 'gt', value)
+        return Expression(self, 'gt', value)
 
     def __ge__(self, value):
-        return Operand(self, 'ge', value)
+        return Expression(self, 'ge', value)
 
     def __lt__(self, value):
-        return Operand(self, 'lt', value)
+        return Expression(self, 'lt', value)
 
     def __le__(self, value):
-        return Operand(self, 'le', value)
+        return Expression(self, 'le', value)
 
 P = Property
 
 
-class Base(object):
-    def __repr__(self):
-        if isinstance(self, Expression):
-            if type(self) is Operand:
-                left, operator, right = self.property, self.comparator, self.value
-            if type(self) is Expression:
-                left, operator, right = self.left, self.operator, self.right
-            return "({0}<-{1}->{2})".format(repr(left), operator, repr(right))
-        else:
-            return "{0}(%s)".format(self.__class_.__name__,
-                                    self)
-
-class Dialect(Base):
+class Dialect(object):
     """
     Define serialization dialect.
     TODO: make a pluggable dialect design.
     """
-    comparators = {'eq': 'eq',
-                   'ne': 'ne',
-                   'gt': 'gt',
-                   'ge': 'ge',
-                   'lt': 'lt',
-                   'le': 'le'}
-
     operators = {'and': 'and',
-                 'or': 'or'}
+                 'or': 'or',
+                 'eq': 'eq',
+                 'ne': 'ne',
+                 'gt': 'gt',
+                 'ge': 'ge',
+                 'lt': 'lt',
+                 'le': 'le'}
 
-    values = {(True, type(True)): True,
-              (False, type(False)): False,
-              (None, type(None)): None}
+    # values = {(True, type(True)): True,
+    #           (False, type(False)): False,
+    #           (None, type(None)): None}
 
     @classmethod
     def property(cls, property):
         """
         Serialize Property object.
         """
-        #FIXME: AttributeError: type object 'property' has no attribute '_Dialect__name'
-        return property.__name
-        #FIXME: AttributeError: type object 'property' has no attribute '__name'
-        return getattr(property, '__name')
+        return property.name
 
-    @classmethod
-    def value(cls, value):
-        """
-        Serialize property value.
-        """
-        return cls.values.get((value, type(value)), value)
-
-    @classmethod
-    def operand(cls, operand):
-        """
-        Serialize Operand object.
-        """
-        return "{0.property} {1} {2}".format(operand,
-                                             cls.comparators[operand.comparator],
-                                             cls.value(operand.value))
+    # @classmethod
+    # def value(cls, value):
+    #     """
+    #     Serialize property value.
+    #     """
+    #     return cls.values.get((value, type(value)), value)
 
     @classmethod
     def expression(cls, expression):
         """
         Serialize Expression object.
         """
-        def nest(operand):
-            #print type(operand), operand
-            if type(operand) is Operand:
-                return "%s" % operand
-            elif type(operand) is Expression:
-                return ("(%s)" % operand)
-            else:
-                return operand
-                raise ValueError('Operand should not be %s "%s"'
-                                 % (type(operand), operand))
-        left = nest(expression.left)
-        right = nest(expression.right)
-        if expression.right:
-            e = "{left} {operator} {right}"
-        else:
-            e = "{left}"
-        return e.format(left=left,
-                        operator=cls.operators[expression.operator],
-                        right=right)
+        return "({left} {operator} {right})".format(
+            left=expression.left,
+            operator=cls.operators[expression.operator],
+            right=expression.right)
 
-class Expression(Base):
+class Expression(object):
     left = None
     operator = None
     right = None
 
     def __init__(self, left, operator, right):
-        # NOTE: - left and right can be an Operand or Expression object,
-        #       - right can be None (in this case operator has no meaning)
-        if not isinstance(left, (Operand, Expression)):
-            raise TypeError('Right must be of type Operand or Expression, '
-                            'was %s' % type(right))
         self.left = left
         self.operator = operator
-        if not isinstance(right, (Operand, Expression, type(None))):
-            raise TypeError('Left must be of type Operand, Expression or None, '
-                            'was %s' % type(right))
         self.right = right
+
+    def __str__(self):
+        return Dialect.expression(self)
+
+    def __repr__(self):
+        if isinstance(self, Expression):
+            return "({0}<-{1}->{2})".format(repr(self.left),
+                                            self.operator,
+                                            repr(self.right))
 
     def __and__(self, other):
         return Expression(self, 'and', other)
 
     def __or__(self, other):
         return Expression(self, 'or', other)
-
-    def __str__(self):
-        return Dialect.expression(self)
 
     def add(self, operator, *operands):
         return self.__class__.factory(operator, self, *operands)
@@ -183,29 +139,10 @@ class Expression(Base):
         Produce an Expression object from the given operands.
         """
         operands = list(operands)
-        right = operands.pop()
-        for operand in reversed(operands):
-            right = Expression(operand, operator, right)
-        return right
-
-class Operand(Expression):
-    #FIXME: Operand could/should be not be coded. Expression suffice...
-    #       Operand extends Expression to be able to .and_() and ._or()
-    #       but this is non-sense, the Operand walks and talks like Expression,
-    #       therefore it is an Expression.
-    property = None
-    comparator = None
-    value = None
-
-    def __init__(self, property, comparator, value):
-        if not isinstance(property, Property):
-            raise TypeError('Property must be of type Property')
-        self.property = property
-        self.comparator = comparator
-        self.value = value
-
-    def __str__(self):
-        return Dialect.operand(self)
+        left = operands.pop(0)
+        for operand in operands:
+            left = Expression(left, operator, operand)
+        return left
 
 def e(*operands):
     """
@@ -235,7 +172,6 @@ if __name__ == '__main__':
     print ex
     ex = ex.and_(P.last == 'n').or_(P.tail == 'yes')
     print ex
-    ex = or_(ex, P.opt == False, P.may == True, P.no == None)
-    print ex
+    print or_(ex, P.opt == False, P.may == True, P.no == None)
+    print ex.or_(P.opt == False, P.may == True, P.no == None)
     #print e(P.a == 'a', P.b >= 'b', or_(P.x == 1, P.y == 2), or_(P.xxx == 1, P.yyy == 2))
-    ex
