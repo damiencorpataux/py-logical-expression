@@ -20,33 +20,31 @@ class Property(object):
     name = None
 
     def __init__(self, name):
-        if not name or not isinstance(name, basestring):
-            raise ValueError('Property name must be string and cannot be empty')
         self.name = name
+
+    def __repr__(self):
+        return "P.%s" % self.name
 
     def __str__(self):
         return Dialect.property(self)
 
-    def __repr__(self):
-        return "{%s}" % self.name
-
     def __eq__(self, value):
-        return Expression(self, 'eq', value)
+        return Expression(self, '==', value)
 
     def __ne__(self, value):
-        return Expression(self, 'ne', value)
+        return Expression(self, '<>', value)
 
     def __gt__(self, value):
-        return Expression(self, 'gt', value)
+        return Expression(self, '>', value)
 
     def __ge__(self, value):
-        return Expression(self, 'ge', value)
+        return Expression(self, '>=', value)
 
     def __lt__(self, value):
-        return Expression(self, 'lt', value)
+        return Expression(self, '<', value)
 
     def __le__(self, value):
-        return Expression(self, 'le', value)
+        return Expression(self, '<=', value)
 
 P = Property
 
@@ -56,14 +54,14 @@ class Dialect(object):
     Define serialization dialect.
     TODO: make a pluggable dialect design.
     """
-    operators = {'and': 'and',
-                 'or': 'or',
-                 'eq': 'eq',
-                 'ne': 'ne',
-                 'gt': 'gt',
-                 'ge': 'ge',
-                 'lt': 'lt',
-                 'le': 'le'}
+    operators = {'&':  'and',
+                 '|':  'or',
+                 '==': 'eq',
+                 '<>': 'ne',
+                 '>':  'gt',
+                 '>=': 'ge',
+                 '<':  'lt',
+                 '<=': 'le'}
 
     # values = {(True, type(True)): True,
     #           (False, type(False)): False,
@@ -88,7 +86,7 @@ class Dialect(object):
         """
         Serialize Expression object.
         """
-        return "({left} {operator} {right})".format(
+        return "{left} {operator} {right}".format(
             left=expression.left,
             operator=cls.operators[expression.operator],
             right=expression.right)
@@ -103,35 +101,34 @@ class Expression(object):
         self.operator = operator
         self.right = right
 
+    def __and__(self, other):
+        return self.and_(other)
+
+    def __or__(self, other):
+        return self.or_(other)
+
     def __str__(self):
         return Dialect.expression(self)
 
     def __repr__(self):
-        if isinstance(self, Expression):
-            return "({0}<-{1}->{2})".format(repr(self.left),
+        return "({0} {1} {2})".format(repr(self.left),
                                             self.operator,
                                             repr(self.right))
 
-    def __and__(self, other):
-        return Expression(self, 'and', other)
-
-    def __or__(self, other):
-        return Expression(self, 'or', other)
-
     def add(self, operator, *operands):
-        return self.__class__.factory(operator, self, *operands)
+        return self.factory(operator, self, *operands)
 
     def and_(self, *operands):
         """
         Add the given operands to the Expression using the OR operator.
         """
-        return self.add('and', *operands)
+        return self.add('&', *operands)
 
     def or_(self, *operands):
         """
         Add the given operands to the Expression using the AND operator.
         """
-        return self.add('or', *operands)
+        return self.add('|', *operands)
 
     @staticmethod
     def factory(operator, *operands):
@@ -154,13 +151,13 @@ def and_(*operands):
     """
     Produce an Expression object with operands and AND operator.
     """
-    return Expression.factory('and', *operands)
+    return Expression.factory('&', *operands)
 
 def or_(*operands):
     """
     Produce an Expression object with operands and the OR operator.
     """
-    return Expression.factory('or', *operands)
+    return Expression.factory('|', *operands)
 
 
 if __name__ == '__main__':
