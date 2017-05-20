@@ -1,6 +1,14 @@
 """
-Logical Expression Microframework (WIP).
+    Logical Expression Microframework (WIP).
 """
+
+import dialect
+
+def setdialect(dialect):
+    globals()['Dialect'] = dialect
+
+setdialect(dialect.Python)
+
 
 class PropertyType(type):
     """
@@ -23,7 +31,7 @@ class Property(object):
         self.name = name
 
     def __repr__(self):
-        return "P.%s" % self.name
+        return dialect.Python.property(self)
 
     def __str__(self):
         return Dialect.property(self)
@@ -49,52 +57,6 @@ class Property(object):
 P = Property
 
 
-class Dialect(object):
-    """
-    Define serialization dialect.
-    TODO: make a pluggable dialect design.
-    """
-    operators = {'&':  'and',
-                 '|':  'or',
-                 '==': 'eq',
-                 '<>': 'ne',
-                 '>':  'gt',
-                 '>=': 'ge',
-                 '<':  'lt',
-                 '<=': 'le'}
-
-    values = {(True, type(True)): True,
-              (False, type(False)): False,
-              (None, type(None)): None}
-
-    @classmethod
-    def property(cls, property):
-        """
-        Serialize Property object.
-        """
-        return property.name
-
-    @classmethod
-    def value(cls, value):
-        """
-        Serialize property value.
-        """
-        return "'%s'" % cls.values.get((value, type(value)), value)
-
-    @classmethod
-    def expression(cls, expression):
-        """
-        Serialize Expression object.
-        """
-        return "{left} {operator} {right}".format(
-            left = expression.left
-                   if isinstance(expression.left, (Property, Expression))
-                   else cls.value(expression.left),
-            operator = cls.operators[expression.operator],
-            right = expression.right
-                    if isinstance(expression.right, (Property, Expression))
-                    else cls.value(expression.right))
-
 class Expression(object):
     left = None
     operator = None
@@ -115,9 +77,7 @@ class Expression(object):
         return Dialect.expression(self)
 
     def __repr__(self):
-        return "({0} {1} {2})".format(repr(self.left),
-                                            self.operator,
-                                            repr(self.right))
+        return dialect.Python.expression(self)
 
     def add(self, operator, *operands):
         return self.factory(operator, self, *operands)
