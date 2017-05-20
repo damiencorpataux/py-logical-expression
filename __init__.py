@@ -63,9 +63,9 @@ class Dialect(object):
                  '<':  'lt',
                  '<=': 'le'}
 
-    # values = {(True, type(True)): True,
-    #           (False, type(False)): False,
-    #           (None, type(None)): None}
+    values = {(True, type(True)): True,
+              (False, type(False)): False,
+              (None, type(None)): None}
 
     @classmethod
     def property(cls, property):
@@ -74,12 +74,12 @@ class Dialect(object):
         """
         return property.name
 
-    # @classmethod
-    # def value(cls, value):
-    #     """
-    #     Serialize property value.
-    #     """
-    #     return cls.values.get((value, type(value)), value)
+    @classmethod
+    def value(cls, value):
+        """
+        Serialize property value.
+        """
+        return "'%s'" % cls.values.get((value, type(value)), value)
 
     @classmethod
     def expression(cls, expression):
@@ -87,9 +87,13 @@ class Dialect(object):
         Serialize Expression object.
         """
         return "{left} {operator} {right}".format(
-            left=expression.left,
-            operator=cls.operators[expression.operator],
-            right=expression.right)
+            left = expression.left
+                   if isinstance(expression.left, (Property, Expression))
+                   else cls.value(expression.left),
+            operator = cls.operators[expression.operator],
+            right = expression.right
+                    if isinstance(expression.right, (Property, Expression))
+                    else cls.value(expression.right))
 
 class Expression(object):
     left = None
@@ -169,6 +173,7 @@ if __name__ == '__main__':
     print ex
     ex = ex.and_(P.last == 'n').or_(P.tail == 'yes')
     print ex
+    print eval(repr(ex))
     print or_(ex, P.opt == False, P.may == True, P.no == None)
     print ex.or_(P.opt == False, P.may == True, P.no == None)
     #print e(P.a == 'a', P.b >= 'b', or_(P.x == 1, P.y == 2), or_(P.xxx == 1, P.yyy == 2))
